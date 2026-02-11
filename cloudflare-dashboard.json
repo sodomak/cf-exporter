@@ -127,7 +127,7 @@
       "pluginVersion": "7.1.5",
       "targets": [
         {
-          "expr": "sum_over_time(cloudflare_zone_requests_total{zone=~\"$zone\"}[$__range])",
+          "expr": "sum(sum_over_time(cloudflare_zone_requests_total{zone=~\"$zone\"}[$__range]))",
           "instant": true,
           "interval": "",
           "legendFormat": "",
@@ -182,7 +182,7 @@
       "pluginVersion": "7.1.5",
       "targets": [
         {
-          "expr": "sum_over_time(cloudflare_zone_bandwidth_total{zone=~\"$zone\"}[$__range])",
+          "expr": "sum(sum_over_time(cloudflare_zone_bandwidth_total{zone=~\"$zone\"}[$__range]))",
           "instant": true,
           "interval": "",
           "legendFormat": "",
@@ -237,7 +237,7 @@
       "pluginVersion": "7.1.5",
       "targets": [
         {
-          "expr": "cloudflare_zone_requests_total{zone=~\"$zone\"}",
+          "expr": "sum(cloudflare_zone_requests_total{zone=~\"$zone\"})",
           "instant": false,
           "interval": "5m",
           "intervalFactor": 10,
@@ -293,7 +293,7 @@
       "pluginVersion": "7.1.5",
       "targets": [
         {
-          "expr": "cloudflare_zone_bandwidth_total{zone=~\"$zone\"}",
+          "expr": "sum(cloudflare_zone_bandwidth_total{zone=~\"$zone\"})",
           "instant": false,
           "interval": "5m",
           "intervalFactor": 10,
@@ -349,7 +349,7 @@
       "pluginVersion": "7.1.5",
       "targets": [
         {
-          "expr": "sum_over_time(cloudflare_zone_uniques_total{zone=~\"$zone\"}[$__range])",
+          "expr": "sum(sum_over_time(cloudflare_zone_uniques_total{zone=~\"$zone\"}[$__range]))",
           "instant": true,
           "interval": "",
           "legendFormat": "",
@@ -404,7 +404,7 @@
       "pluginVersion": "7.1.5",
       "targets": [
         {
-          "expr": "cloudflare_zone_uniques_total{zone=~\"$zone\"}",
+          "expr": "sum(cloudflare_zone_uniques_total{zone=~\"$zone\"})",
           "instant": false,
           "interval": "5m",
           "intervalFactor": 10,
@@ -467,7 +467,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "cloudflare_zone_uniques_total{zone=~\"$zone\"}",
+          "expr": "sum(cloudflare_zone_uniques_total{zone=~\"$zone\"})",
           "interval": "",
           "intervalFactor": 10,
           "legendFormat": "visitors",
@@ -579,14 +579,14 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "cloudflare_zone_requests_total{zone=~\"$zone\"}",
+          "expr": "sum(cloudflare_zone_requests_total{zone=~\"$zone\"})",
           "interval": "",
           "intervalFactor": 10,
           "legendFormat": "total",
           "refId": "A"
         },
         {
-          "expr": "cloudflare_zone_requests_cached{zone=~\"$zone\"}",
+          "expr": "sum by (cache_status)(cloudflare_zone_requests_cached{zone=~\"$zone\"})",
           "interval": "",
           "intervalFactor": 10,
           "legendFormat": "cached",
@@ -686,7 +686,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "cloudflare_zone_requests_country{zone=~\"$zone\"} > 0",
+          "expr": "sum by (country)(cloudflare_zone_requests_country{zone=~\"$zone\"}) > 0",
           "instant": false,
           "interval": "",
           "intervalFactor": 10,
@@ -787,7 +787,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "cloudflare_zone_requests_status{zone=~\"$zone\", status!~\"5..\"} ",
+          "expr": "sum by (status)(cloudflare_zone_requests_status{zone=~\"$zone\", status!~\"5..\"})",
           "interval": "",
           "intervalFactor": 10,
           "legendFormat": "{{status}}",
@@ -887,7 +887,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "cloudflare_zone_requests_status{zone=~\"$zone\", status!~\"2..\"} ",
+          "expr": "sum by (status)(cloudflare_zone_requests_status{zone=~\"$zone\", status!~\"2..\"})",
           "interval": "",
           "intervalFactor": 10,
           "legendFormat": "{{status}}",
@@ -974,14 +974,14 @@
       "strokeWidth": 1,
       "targets": [
         {
-          "expr": "cloudflare_zone_requests_cached{zone=~\"$zone\"} / cloudflare_zone_requests_total{zone=~\"$zone\"}",
+          "expr": "sum(cloudflare_zone_requests_cached{zone=~\"$zone\"}) / sum(cloudflare_zone_requests_total{zone=~\"$zone\"})",
           "instant": true,
           "interval": "",
           "legendFormat": "cached",
           "refId": "A"
         },
         {
-          "expr": "(cloudflare_zone_requests_total{zone=~\"$zone\"} - cloudflare_zone_requests_cached{zone=~\"$zone\"}) / cloudflare_zone_requests_total{zone=~\"$zone\"}",
+          "expr": "(sum(cloudflare_zone_requests_total{zone=~\"$zone\"}) - sum(cloudflare_zone_requests_cached{zone=~\"$zone\"})) / sum(cloudflare_zone_requests_total{zone=~\"$zone\"})",
           "instant": true,
           "interval": "",
           "legendFormat": "uncached",
@@ -1031,14 +1031,14 @@
       "strokeWidth": 1,
       "targets": [
         {
-          "expr": "cloudflare_zone_requests_ssl_encrypted{zone=~\"$zone\"} / cloudflare_zone_requests_total{zone=~\"$zone\"}",
+          "expr": "sum(cloudflare_zone_requests_ssl_encrypted{zone=~\"$zone\"}) / sum(cloudflare_zone_requests_total{zone=~\"$zone\"})",
           "instant": true,
           "interval": "",
           "legendFormat": "encrypted",
           "refId": "A"
         },
         {
-          "expr": "( cloudflare_zone_requests_total{zone=~\"$zone\"} - cloudflare_zone_requests_ssl_encrypted{zone=~\"$zone\"}  ) / cloudflare_zone_requests_total{zone=~\"$zone\"}",
+          "expr": "(sum(cloudflare_zone_requests_total{zone=~\"$zone\"}) - sum(cloudflare_zone_requests_ssl_encrypted{zone=~\"$zone\"})) / sum(cloudflare_zone_requests_total{zone=~\"$zone\"})",
           "instant": true,
           "interval": "",
           "legendFormat": "unencrypted",
@@ -1101,7 +1101,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "cloudflare_zone_requests_status{zone=~\"$zone\", status=~\"5..\"} ",
+          "expr": "sum by (status)(cloudflare_zone_requests_status{zone=~\"$zone\", status=~\"5..\"})",
           "interval": "",
           "intervalFactor": 10,
           "legendFormat": "{{status}}",
@@ -1191,7 +1191,7 @@
       "strokeWidth": 1,
       "targets": [
         {
-          "expr": "sum_over_time(cloudflare_zone_requests_country{zone=~\"$zone\"}[$__range])",
+          "expr": "sum by (country)(sum_over_time(cloudflare_zone_requests_country{zone=~\"$zone\"}[$__range]))",
           "instant": true,
           "interval": "",
           "legendFormat": "{{country}}",
@@ -1244,7 +1244,7 @@
       "strokeWidth": 1,
       "targets": [
         {
-          "expr": "sum_over_time(cloudflare_zone_requests_status{zone=~\"$zone\"}[$__range])",
+          "expr": "sum by (status)(sum_over_time(cloudflare_zone_requests_status{zone=~\"$zone\"}[$__range]))",
           "interval": "",
           "legendFormat": "{{ status }}",
           "refId": "A"
@@ -1316,14 +1316,14 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "cloudflare_zone_bandwidth_total{zone=~\"$zone\"}",
+              "expr": "sum(cloudflare_zone_bandwidth_total{zone=~\"$zone\"})",
               "interval": "5m",
               "intervalFactor": 10,
               "legendFormat": "total",
               "refId": "A"
             },
             {
-              "expr": "cloudflare_zone_bandwidth_cached{zone=~\"$zone\"}",
+              "expr": "sum by (cache_status)(cloudflare_zone_bandwidth_cached{zone=~\"$zone\"})",
               "interval": "5m",
               "intervalFactor": 10,
               "legendFormat": "cached",
@@ -1410,13 +1410,13 @@
           "strokeWidth": 1,
           "targets": [
             {
-              "expr": "cloudflare_zone_bandwidth_cached{zone=~\"$zone\"} / cloudflare_zone_bandwidth_total{zone=~\"$zone\"}",
+              "expr": "sum(cloudflare_zone_bandwidth_cached{zone=~\"$zone\"}) / sum(cloudflare_zone_bandwidth_total{zone=~\"$zone\"})",
               "interval": "",
               "legendFormat": "cached",
               "refId": "A"
             },
             {
-              "expr": "(cloudflare_zone_bandwidth_total{zone=~\"$zone\"} - cloudflare_zone_bandwidth_cached{zone=~\"$zone\"}) / cloudflare_zone_bandwidth_total{zone=~\"$zone\"}",
+              "expr": "(sum(cloudflare_zone_bandwidth_total{zone=~\"$zone\"}) - sum(cloudflare_zone_bandwidth_cached{zone=~\"$zone\"})) / sum(cloudflare_zone_bandwidth_total{zone=~\"$zone\"})",
               "interval": "",
               "legendFormat": "uncached",
               "refId": "B"
@@ -1490,7 +1490,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "cloudflare_zone_threats_total{zone=~\"$zone\"}",
+              "expr": "sum(cloudflare_zone_threats_total{zone=~\"$zone\"})",
               "interval": "",
               "legendFormat": "{{zone}}/threats",
               "refId": "A"
@@ -1586,7 +1586,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "cloudflare_zone_threats_country{zone=~\"$zone\"}",
+              "expr": "sum by (country)(cloudflare_zone_threats_country{zone=~\"$zone\"})",
               "interval": "",
               "legendFormat": "{{country}}/threats",
               "refId": "A"
