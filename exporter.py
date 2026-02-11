@@ -351,6 +351,14 @@ def scrape_loop():
         log.error("No zones found. Check CF_API_TOKEN and CF_ZONES.")
         return
 
+    # Initialize base metrics to 0 so all zones appear in Grafana
+    for zone in zones:
+        zn = zone["name"]
+        zone_requests_total.labels(zone=zn).set(0)
+        zone_bandwidth_total.labels(zone=zn).set(0)
+        zone_uniques_total.labels(zone=zn).set(0)
+        zone_threats_total.labels(zone=zn).set(0)
+
     while True:
         try:
             now = datetime.now(timezone.utc)
