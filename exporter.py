@@ -65,16 +65,6 @@ zone_bandwidth_cached = Gauge(
     "Cached bandwidth per zone in bytes",
     LABELS + ["cache_status"],
 )
-zone_requests_content_type = Gauge(
-    "cloudflare_zone_requests_content_type",
-    "Number of requests for zone per content type",
-    LABELS + ["content_type"],
-)
-zone_bandwidth_content_type = Gauge(
-    "cloudflare_zone_bandwidth_content_type",
-    "Bandwidth per zone per content type",
-    LABELS + ["content_type"],
-)
 zone_requests_country = Gauge(
     "cloudflare_zone_requests_country",
     "Number of requests for zone per country",
@@ -205,21 +195,6 @@ query($zoneTag: string!, $mintime: Time!, $maxtime: Time!) {
 }
 """
 
-QUERY_BY_CONTENT_TYPE = """
-query($zoneTag: string!, $mintime: Time!, $maxtime: Time!) {
-  viewer {
-    zones(filter: { zoneTag: $zoneTag }) {
-      byContentType: httpRequestsAdaptiveGroups(limit: 50, filter: {
-        datetime_geq: $mintime, datetime_lt: $maxtime
-      }) {
-        count
-        sum { edgeResponseBytes }
-        dimensions { edgeResponseContentTypeName }
-      }
-    }
-  }
-}
-"""
 
 QUERY_BY_COUNTRY = """
 query($zoneTag: string!, $mintime: Time!, $maxtime: Time!) {
@@ -324,17 +299,6 @@ def scrape_zone(zone, mintime, maxtime):
                 g["sum"]["edgeResponseBytes"]
             )
 
-    # --- By content type ---
-    data = graphql_query(QUERY_BY_CONTENT_TYPE, variables)
-    if data and data["viewer"]["zones"]:
-        for g in data["viewer"]["zones"][0].get("byContentType", []):
-            ct = g["dimensions"]["edgeResponseContentTypeName"] or "unknown"
-            zone_requests_content_type.labels(zone=zone_name, content_type=ct).set(
-                g["count"]
-            )
-            zone_bandwidth_content_type.labels(zone=zone_name, content_type=ct).set(
-                g["sum"]["edgeResponseBytes"]
-            )
 
     # --- By country ---
     data = graphql_query(QUERY_BY_COUNTRY, variables)
