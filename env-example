@@ -1,0 +1,7 @@
+# Cloudflare Exporter - Free Tier Compatible
+CF_API_TOKEN=your_cloudflare_api_token
+# CF_ZONES=zone_id_1,zone_id_2  # optional, empty = all zones
+CF_EXPORTER_PORT=8090
+CF_SCRAPE_INTERVAL=60
+CF_SCRAPE_DELAY=300
+CF_LOG_LEVEL=info

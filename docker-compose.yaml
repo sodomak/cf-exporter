@@ -1,0 +1,14 @@
+services:
+  cloudflare-exporter:
+    build: .
+    container_name: tigement-cloudflare-exporter
+    environment:
+      CF_API_TOKEN: ${CF_API_TOKEN}
+      CF_ZONES: ${CF_ZONES:-}
+      LISTEN_PORT: ${CF_EXPORTER_PORT:-8080}
+      SCRAPE_INTERVAL: ${CF_SCRAPE_INTERVAL:-60}
+      SCRAPE_DELAY: ${CF_SCRAPE_DELAY:-300}
+      LOG_LEVEL: ${CF_LOG_LEVEL:-info}
+    ports:
+      - "${CF_EXPORTER_PORT:-8080}:${CF_EXPORTER_PORT:-8080}"
+    restart: unless-stopped
