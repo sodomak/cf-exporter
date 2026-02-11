@@ -127,7 +127,7 @@
       "pluginVersion": "7.1.5",
       "targets": [
         {
-          "expr": "sum(sum_over_time(cloudflare_zone_requests_total{zone=~\"$zone\"}[$__range]))",
+          "expr": "sum(cloudflare_zone_rolling_requests_total{zone=~\"$zone\"})",
           "instant": true,
           "interval": "",
           "legendFormat": "",
@@ -182,7 +182,7 @@
       "pluginVersion": "7.1.5",
       "targets": [
         {
-          "expr": "sum(sum_over_time(cloudflare_zone_bandwidth_total{zone=~\"$zone\"}[$__range]))",
+          "expr": "sum(cloudflare_zone_rolling_bandwidth_total{zone=~\"$zone\"})",
           "instant": true,
           "interval": "",
           "legendFormat": "",
@@ -349,7 +349,7 @@
       "pluginVersion": "7.1.5",
       "targets": [
         {
-          "expr": "sum(sum_over_time(cloudflare_zone_uniques_total{zone=~\"$zone\"}[$__range]))",
+          "expr": "sum(cloudflare_zone_rolling_uniques_total{zone=~\"$zone\"})",
           "instant": true,
           "interval": "",
           "legendFormat": "",
@@ -974,14 +974,14 @@
       "strokeWidth": 1,
       "targets": [
         {
-          "expr": "sum(cloudflare_zone_requests_cached{zone=~\"$zone\"}) / sum(cloudflare_zone_requests_total{zone=~\"$zone\"})",
+          "expr": "sum(cloudflare_zone_rolling_requests_cached{zone=~\"$zone\"}) / sum(cloudflare_zone_rolling_requests_total{zone=~\"$zone\"})",
           "instant": true,
           "interval": "",
           "legendFormat": "cached",
           "refId": "A"
         },
         {
-          "expr": "(sum(cloudflare_zone_requests_total{zone=~\"$zone\"}) - sum(cloudflare_zone_requests_cached{zone=~\"$zone\"})) / sum(cloudflare_zone_requests_total{zone=~\"$zone\"})",
+          "expr": "(sum(cloudflare_zone_rolling_requests_total{zone=~\"$zone\"}) - sum(cloudflare_zone_rolling_requests_cached{zone=~\"$zone\"})) / sum(cloudflare_zone_rolling_requests_total{zone=~\"$zone\"})",
           "instant": true,
           "interval": "",
           "legendFormat": "uncached",
@@ -1031,14 +1031,14 @@
       "strokeWidth": 1,
       "targets": [
         {
-          "expr": "sum(cloudflare_zone_requests_ssl_encrypted{zone=~\"$zone\"}) / sum(cloudflare_zone_requests_total{zone=~\"$zone\"})",
+          "expr": "sum(cloudflare_zone_rolling_requests_ssl{zone=~\"$zone\"}) / sum(cloudflare_zone_rolling_requests_total{zone=~\"$zone\"})",
           "instant": true,
           "interval": "",
           "legendFormat": "encrypted",
           "refId": "A"
         },
         {
-          "expr": "(sum(cloudflare_zone_requests_total{zone=~\"$zone\"}) - sum(cloudflare_zone_requests_ssl_encrypted{zone=~\"$zone\"})) / sum(cloudflare_zone_requests_total{zone=~\"$zone\"})",
+          "expr": "(sum(cloudflare_zone_rolling_requests_total{zone=~\"$zone\"}) - sum(cloudflare_zone_rolling_requests_ssl{zone=~\"$zone\"})) / sum(cloudflare_zone_rolling_requests_total{zone=~\"$zone\"})",
           "instant": true,
           "interval": "",
           "legendFormat": "unencrypted",
@@ -1191,7 +1191,7 @@
       "strokeWidth": 1,
       "targets": [
         {
-          "expr": "sum by (country)(sum_over_time(cloudflare_zone_requests_country{zone=~\"$zone\"}[$__range]))",
+          "expr": "sum by (country)(cloudflare_zone_rolling_requests_country{zone=~\"$zone\"})",
           "instant": true,
           "interval": "",
           "legendFormat": "{{country}}",
@@ -1244,10 +1244,11 @@
       "strokeWidth": 1,
       "targets": [
         {
-          "expr": "sum by (status)(sum_over_time(cloudflare_zone_requests_status{zone=~\"$zone\"}[$__range]))",
+          "expr": "sum by (status)(cloudflare_zone_rolling_requests_status{zone=~\"$zone\"})",
           "interval": "",
           "legendFormat": "{{ status }}",
-          "refId": "A"
+          "refId": "A",
+          "instant": true
         }
       ],
       "timeFrom": null,
@@ -1410,16 +1411,18 @@
           "strokeWidth": 1,
           "targets": [
             {
-              "expr": "sum(cloudflare_zone_bandwidth_cached{zone=~\"$zone\"}) / sum(cloudflare_zone_bandwidth_total{zone=~\"$zone\"})",
+              "expr": "sum(cloudflare_zone_rolling_bandwidth_cached{zone=~\"$zone\"}) / sum(cloudflare_zone_rolling_bandwidth_total{zone=~\"$zone\"})",
               "interval": "",
               "legendFormat": "cached",
-              "refId": "A"
+              "refId": "A",
+              "instant": true
             },
             {
-              "expr": "(sum(cloudflare_zone_bandwidth_total{zone=~\"$zone\"}) - sum(cloudflare_zone_bandwidth_cached{zone=~\"$zone\"})) / sum(cloudflare_zone_bandwidth_total{zone=~\"$zone\"})",
+              "expr": "(sum(cloudflare_zone_rolling_bandwidth_total{zone=~\"$zone\"}) - sum(cloudflare_zone_rolling_bandwidth_cached{zone=~\"$zone\"})) / sum(cloudflare_zone_rolling_bandwidth_total{zone=~\"$zone\"})",
               "interval": "",
               "legendFormat": "uncached",
-              "refId": "B"
+              "refId": "B",
+              "instant": true
             }
           ],
           "timeFrom": null,

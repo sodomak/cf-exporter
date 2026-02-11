@@ -23,6 +23,7 @@ CF_ACCOUNTS = os.environ.get("CF_ACCOUNTS", "")  # optional account ID
 LISTEN_PORT = int(os.environ.get("LISTEN_PORT", "8080"))
 SCRAPE_INTERVAL = int(os.environ.get("SCRAPE_INTERVAL", "60"))
 SCRAPE_DELAY = int(os.environ.get("SCRAPE_DELAY", "300"))  # data offset in seconds
+ROLLING_WINDOW = int(os.environ.get("ROLLING_WINDOW", "86400"))  # rolling sum window in seconds (default 24h)
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "info").upper()
 
 logging.basicConfig(
@@ -98,6 +99,67 @@ zone_threats_country = Gauge(
 
 exporter_info = Info("cloudflare_exporter", "Cloudflare exporter metadata")
 exporter_info.info({"version": "1.0.0", "tier": "free"})
+
+# ---------------------------------------------------------------------------
+# Rolling window metrics (aggregated over ROLLING_WINDOW, e.g. 24h)
+# ---------------------------------------------------------------------------
+RLABELS = ["zone"]
+
+rolling_requests_total = Gauge(
+    "cloudflare_zone_rolling_requests_total",
+    "Total requests over rolling window",
+    RLABELS,
+)
+rolling_bandwidth_total = Gauge(
+    "cloudflare_zone_rolling_bandwidth_total",
+    "Total bandwidth over rolling window in bytes",
+    RLABELS,
+)
+rolling_uniques_total = Gauge(
+    "cloudflare_zone_rolling_uniques_total",
+    "Unique visitors over rolling window",
+    RLABELS,
+)
+rolling_requests_cached = Gauge(
+    "cloudflare_zone_rolling_requests_cached",
+    "Cached requests over rolling window",
+    RLABELS + ["cache_status"],
+)
+rolling_bandwidth_cached = Gauge(
+    "cloudflare_zone_rolling_bandwidth_cached",
+    "Cached bandwidth over rolling window in bytes",
+    RLABELS + ["cache_status"],
+)
+rolling_requests_country = Gauge(
+    "cloudflare_zone_rolling_requests_country",
+    "Requests per country over rolling window",
+    RLABELS + ["country"],
+)
+rolling_bandwidth_country = Gauge(
+    "cloudflare_zone_rolling_bandwidth_country",
+    "Bandwidth per country over rolling window in bytes",
+    RLABELS + ["country"],
+)
+rolling_requests_status = Gauge(
+    "cloudflare_zone_rolling_requests_status",
+    "Requests per HTTP status over rolling window",
+    RLABELS + ["status"],
+)
+rolling_requests_ssl = Gauge(
+    "cloudflare_zone_rolling_requests_ssl",
+    "Requests per SSL protocol over rolling window",
+    RLABELS + ["ssl"],
+)
+rolling_threats_total = Gauge(
+    "cloudflare_zone_rolling_threats_total",
+    "Threats over rolling window",
+    RLABELS,
+)
+rolling_threats_country = Gauge(
+    "cloudflare_zone_rolling_threats_country",
+    "Threats per country over rolling window",
+    RLABELS + ["country"],
+)
 
 exporter_scrape_errors = Gauge(
     "cloudflare_exporter_scrape_errors_total",
@@ -341,6 +403,75 @@ def scrape_zone(zone, mintime, maxtime):
             )
 
 
+def scrape_zone_rolling(zone, mintime, maxtime):
+    """Scrape rolling window metrics for a single zone."""
+    zone_id = zone["id"]
+    zone_name = zone["name"]
+    variables = {"zoneTag": zone_id, "mintime": mintime, "maxtime": maxtime}
+    log.debug("Rolling scrape %s [%s - %s]", zone_name, mintime, maxtime)
+
+    # --- Totals ---
+    data = graphql_query(QUERY_TOTALS, variables)
+    if data and data["viewer"]["zones"]:
+        groups = data["viewer"]["zones"][0].get("totals", [])
+        if groups:
+            g = groups[0]
+            rolling_requests_total.labels(zone=zone_name).set(g["count"])
+            rolling_bandwidth_total.labels(zone=zone_name).set(
+                g["sum"]["edgeResponseBytes"]
+            )
+            rolling_uniques_total.labels(zone=zone_name).set(g["sum"]["visits"])
+            log.info(
+                "Rolling %s: %d requests, %d bytes, %d visits",
+                zone_name, g["count"], g["sum"]["edgeResponseBytes"], g["sum"]["visits"],
+            )
+
+    # --- By cache status ---
+    data = graphql_query(QUERY_BY_CACHE, variables)
+    if data and data["viewer"]["zones"]:
+        for g in data["viewer"]["zones"][0].get("byCache", []):
+            status = g["dimensions"]["cacheStatus"] or "unknown"
+            rolling_requests_cached.labels(zone=zone_name, cache_status=status).set(g["count"])
+            rolling_bandwidth_cached.labels(zone=zone_name, cache_status=status).set(
+                g["sum"]["edgeResponseBytes"]
+            )
+
+    # --- By country ---
+    data = graphql_query(QUERY_BY_COUNTRY, variables)
+    if data and data["viewer"]["zones"]:
+        for g in data["viewer"]["zones"][0].get("byCountry", []):
+            country = g["dimensions"]["clientCountryName"] or "unknown"
+            rolling_requests_country.labels(zone=zone_name, country=country).set(g["count"])
+            rolling_bandwidth_country.labels(zone=zone_name, country=country).set(
+                g["sum"]["edgeResponseBytes"]
+            )
+
+    # --- By HTTP status ---
+    data = graphql_query(QUERY_BY_STATUS, variables)
+    if data and data["viewer"]["zones"]:
+        for g in data["viewer"]["zones"][0].get("byStatus", []):
+            status = str(g["dimensions"]["edgeResponseStatus"])
+            rolling_requests_status.labels(zone=zone_name, status=status).set(g["count"])
+
+    # --- By SSL ---
+    data = graphql_query(QUERY_BY_SSL, variables)
+    if data and data["viewer"]["zones"]:
+        for g in data["viewer"]["zones"][0].get("bySSL", []):
+            proto = g["dimensions"]["clientSSLProtocol"] or "none"
+            rolling_requests_ssl.labels(zone=zone_name, ssl=proto).set(g["count"])
+
+    # --- Threats ---
+    data = graphql_query(QUERY_THREATS, variables)
+    if data and data["viewer"]["zones"]:
+        groups = data["viewer"]["zones"][0].get("threats", [])
+        rolling_threats_total.labels(zone=zone_name).set(
+            sum(g["count"] for g in groups)
+        )
+        for g in groups:
+            country = g["dimensions"]["clientCountryName"] or "unknown"
+            rolling_threats_country.labels(zone=zone_name, country=country).set(g["count"])
+
+
 # ---------------------------------------------------------------------------
 # Main loop
 # ---------------------------------------------------------------------------
@@ -358,6 +489,13 @@ def scrape_loop():
         zone_bandwidth_total.labels(zone=zn).set(0)
         zone_uniques_total.labels(zone=zn).set(0)
         zone_threats_total.labels(zone=zn).set(0)
+        rolling_requests_total.labels(zone=zn).set(0)
+        rolling_bandwidth_total.labels(zone=zn).set(0)
+        rolling_uniques_total.labels(zone=zn).set(0)
+        rolling_threats_total.labels(zone=zn).set(0)
+
+    last_rolling_scrape = 0
+    rolling_interval = max(SCRAPE_INTERVAL * 5, 300)  # rolling scrape every 5 cycles or 5min minimum
 
     while True:
         try:
@@ -376,6 +514,21 @@ def scrape_loop():
                     log.exception("Error scraping zone %s", zone["name"])
                     exporter_scrape_errors.inc()
 
+            # Rolling window scrape (less frequent to avoid API rate limits)
+            if time.time() - last_rolling_scrape >= rolling_interval:
+                rolling_max = maxtime
+                rolling_min = (
+                    now - timedelta(seconds=SCRAPE_DELAY + ROLLING_WINDOW)
+                ).strftime("%Y-%m-%dT%H:%M:%SZ")
+                log.info("Running rolling %dh scrape", ROLLING_WINDOW // 3600)
+                for zone in zones:
+                    try:
+                        scrape_zone_rolling(zone, rolling_min, rolling_max)
+                    except Exception:
+                        log.exception("Error rolling scrape zone %s", zone["name"])
+                        exporter_scrape_errors.inc()
+                last_rolling_scrape = time.time()
+
             exporter_last_scrape.set(time.time())
         except Exception:
             log.exception("Error in scrape loop")
@@ -390,7 +543,7 @@ def main():
         sys.exit(1)
 
     log.info("Starting Cloudflare exporter on :%d/metrics", LISTEN_PORT)
-    log.info("Scrape interval: %ds, data delay: %ds", SCRAPE_INTERVAL, SCRAPE_DELAY)
+    log.info("Scrape interval: %ds, data delay: %ds, rolling window: %dh", SCRAPE_INTERVAL, SCRAPE_DELAY, ROLLING_WINDOW // 3600)
 
     start_http_server(LISTEN_PORT)
 

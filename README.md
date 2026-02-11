@@ -6,6 +6,8 @@ Most existing exporters (lablabs, Cloudflare's official one) require Pro+ plans.
 
 ## Metrics
 
+**Per-scrape metrics** (updated every `CF_SCRAPE_INTERVAL`, for time-series graphs):
+
 - `cloudflare_zone_requests_total` — total requests
 - `cloudflare_zone_bandwidth_total` — total bandwidth (bytes)
 - `cloudflare_zone_uniques_total` — unique visitors
@@ -14,6 +16,16 @@ Most existing exporters (lablabs, Cloudflare's official one) require Pro+ plans.
 - `cloudflare_zone_requests_status` — by HTTP status code
 - `cloudflare_zone_requests_ssl_encrypted` — by SSL protocol
 - `cloudflare_zone_threats_total` / `cloudflare_zone_threats_country` — threats (403 responses)
+
+**Rolling window metrics** (aggregated over `CF_ROLLING_WINDOW`, default 24h, for stat panels and pie charts):
+
+- `cloudflare_zone_rolling_requests_total` / `cloudflare_zone_rolling_bandwidth_total` / `cloudflare_zone_rolling_uniques_total`
+- `cloudflare_zone_rolling_requests_cached` / `cloudflare_zone_rolling_bandwidth_cached`
+- `cloudflare_zone_rolling_requests_country` / `cloudflare_zone_rolling_bandwidth_country`
+- `cloudflare_zone_rolling_requests_status` / `cloudflare_zone_rolling_requests_ssl`
+- `cloudflare_zone_rolling_threats_total` / `cloudflare_zone_rolling_threats_country`
+
+Rolling metrics query Cloudflare's full historical data for the configured window, so stat panels show accurate totals immediately — no need to wait for Prometheus to accumulate data.
 
 ## Setup
 
@@ -43,6 +55,7 @@ Metrics are served at `http://localhost:8090/metrics`.
 | `CF_EXPORTER_PORT` | `8090` | Metrics endpoint port |
 | `CF_SCRAPE_INTERVAL` | `60` | Scrape interval in seconds |
 | `CF_SCRAPE_DELAY` | `300` | Data delay offset (Cloudflare analytics lag) |
+| `CF_ROLLING_WINDOW` | `86400` | Rolling summary window in seconds (default 24h) |
 | `CF_LOG_LEVEL` | `info` | Log level (`debug`, `info`, `error`) |
 
 ## Grafana
