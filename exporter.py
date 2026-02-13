@@ -403,73 +403,120 @@ def scrape_zone(zone, mintime, maxtime):
             )
 
 
-def scrape_zone_rolling(zone, mintime, maxtime):
-    """Scrape rolling window metrics for a single zone."""
+def scrape_zone_rolling(zone, rolling_start, rolling_end):
+    """Scrape rolling window metrics by chunking into 24h API queries and summing."""
     zone_id = zone["id"]
     zone_name = zone["name"]
-    variables = {"zoneTag": zone_id, "mintime": mintime, "maxtime": maxtime}
-    log.debug("Rolling scrape %s [%s - %s]", zone_name, mintime, maxtime)
 
-    # --- Totals ---
-    data = graphql_query(QUERY_TOTALS, variables)
-    if data and data["viewer"]["zones"]:
-        groups = data["viewer"]["zones"][0].get("totals", [])
-        if groups:
-            g = groups[0]
-            rolling_requests_total.labels(zone=zone_name).set(g["count"])
-            rolling_bandwidth_total.labels(zone=zone_name).set(
-                g["sum"]["edgeResponseBytes"]
-            )
-            rolling_uniques_total.labels(zone=zone_name).set(g["sum"]["visits"])
-            log.info(
-                "Rolling %s: %d requests, %d bytes, %d visits",
-                zone_name, g["count"], g["sum"]["edgeResponseBytes"], g["sum"]["visits"],
-            )
+    start_dt = datetime.strptime(rolling_start, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    end_dt = datetime.strptime(rolling_end, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    chunk_size = timedelta(seconds=86400)  # 24h max per API call
 
-    # --- By cache status ---
-    data = graphql_query(QUERY_BY_CACHE, variables)
-    if data and data["viewer"]["zones"]:
-        for g in data["viewer"]["zones"][0].get("byCache", []):
-            status = g["dimensions"]["cacheStatus"] or "unknown"
-            rolling_requests_cached.labels(zone=zone_name, cache_status=status).set(g["count"])
-            rolling_bandwidth_cached.labels(zone=zone_name, cache_status=status).set(
-                g["sum"]["edgeResponseBytes"]
-            )
+    # Build list of (mintime, maxtime) chunks
+    chunks = []
+    t = start_dt
+    while t < end_dt:
+        chunk_end = min(t + chunk_size, end_dt)
+        chunks.append((
+            t.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            chunk_end.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        ))
+        t = chunk_end
 
-    # --- By country ---
-    data = graphql_query(QUERY_BY_COUNTRY, variables)
-    if data and data["viewer"]["zones"]:
-        for g in data["viewer"]["zones"][0].get("byCountry", []):
-            country = g["dimensions"]["clientCountryName"] or "unknown"
-            rolling_requests_country.labels(zone=zone_name, country=country).set(g["count"])
-            rolling_bandwidth_country.labels(zone=zone_name, country=country).set(
-                g["sum"]["edgeResponseBytes"]
-            )
+    log.debug("Rolling scrape %s: %d chunks over [%s - %s]", zone_name, len(chunks), rolling_start, rolling_end)
 
-    # --- By HTTP status ---
-    data = graphql_query(QUERY_BY_STATUS, variables)
-    if data and data["viewer"]["zones"]:
-        for g in data["viewer"]["zones"][0].get("byStatus", []):
-            status = str(g["dimensions"]["edgeResponseStatus"])
-            rolling_requests_status.labels(zone=zone_name, status=status).set(g["count"])
+    # Accumulators
+    total_requests = 0
+    total_bandwidth = 0
+    total_visits = 0
+    cache_acc = {}      # {status: {count, bytes}}
+    country_acc = {}    # {country: {count, bytes}}
+    status_acc = {}     # {status: count}
+    ssl_acc = {}        # {proto: count}
+    threat_acc = {}     # {country: count}
 
-    # --- By SSL ---
-    data = graphql_query(QUERY_BY_SSL, variables)
-    if data and data["viewer"]["zones"]:
-        for g in data["viewer"]["zones"][0].get("bySSL", []):
-            proto = g["dimensions"]["clientSSLProtocol"] or "none"
-            rolling_requests_ssl.labels(zone=zone_name, ssl=proto).set(g["count"])
+    for mintime, maxtime in chunks:
+        variables = {"zoneTag": zone_id, "mintime": mintime, "maxtime": maxtime}
 
-    # --- Threats ---
-    data = graphql_query(QUERY_THREATS, variables)
-    if data and data["viewer"]["zones"]:
-        groups = data["viewer"]["zones"][0].get("threats", [])
-        rolling_threats_total.labels(zone=zone_name).set(
-            sum(g["count"] for g in groups)
-        )
-        for g in groups:
-            country = g["dimensions"]["clientCountryName"] or "unknown"
-            rolling_threats_country.labels(zone=zone_name, country=country).set(g["count"])
+        # --- Totals ---
+        data = graphql_query(QUERY_TOTALS, variables)
+        if data and data["viewer"]["zones"]:
+            groups = data["viewer"]["zones"][0].get("totals", [])
+            if groups:
+                g = groups[0]
+                total_requests += g["count"]
+                total_bandwidth += g["sum"]["edgeResponseBytes"]
+                total_visits += g["sum"]["visits"]
+
+        # --- By cache status ---
+        data = graphql_query(QUERY_BY_CACHE, variables)
+        if data and data["viewer"]["zones"]:
+            for g in data["viewer"]["zones"][0].get("byCache", []):
+                status = g["dimensions"]["cacheStatus"] or "unknown"
+                if status not in cache_acc:
+                    cache_acc[status] = {"count": 0, "bytes": 0}
+                cache_acc[status]["count"] += g["count"]
+                cache_acc[status]["bytes"] += g["sum"]["edgeResponseBytes"]
+
+        # --- By country ---
+        data = graphql_query(QUERY_BY_COUNTRY, variables)
+        if data and data["viewer"]["zones"]:
+            for g in data["viewer"]["zones"][0].get("byCountry", []):
+                country = g["dimensions"]["clientCountryName"] or "unknown"
+                if country not in country_acc:
+                    country_acc[country] = {"count": 0, "bytes": 0}
+                country_acc[country]["count"] += g["count"]
+                country_acc[country]["bytes"] += g["sum"]["edgeResponseBytes"]
+
+        # --- By HTTP status ---
+        data = graphql_query(QUERY_BY_STATUS, variables)
+        if data and data["viewer"]["zones"]:
+            for g in data["viewer"]["zones"][0].get("byStatus", []):
+                s = str(g["dimensions"]["edgeResponseStatus"])
+                status_acc[s] = status_acc.get(s, 0) + g["count"]
+
+        # --- By SSL ---
+        data = graphql_query(QUERY_BY_SSL, variables)
+        if data and data["viewer"]["zones"]:
+            for g in data["viewer"]["zones"][0].get("bySSL", []):
+                proto = g["dimensions"]["clientSSLProtocol"] or "none"
+                ssl_acc[proto] = ssl_acc.get(proto, 0) + g["count"]
+
+        # --- Threats ---
+        data = graphql_query(QUERY_THREATS, variables)
+        if data and data["viewer"]["zones"]:
+            for g in data["viewer"]["zones"][0].get("threats", []):
+                country = g["dimensions"]["clientCountryName"] or "unknown"
+                threat_acc[country] = threat_acc.get(country, 0) + g["count"]
+
+    # --- Set all rolling metrics ---
+    rolling_requests_total.labels(zone=zone_name).set(total_requests)
+    rolling_bandwidth_total.labels(zone=zone_name).set(total_bandwidth)
+    rolling_uniques_total.labels(zone=zone_name).set(total_visits)
+
+    for status, vals in cache_acc.items():
+        rolling_requests_cached.labels(zone=zone_name, cache_status=status).set(vals["count"])
+        rolling_bandwidth_cached.labels(zone=zone_name, cache_status=status).set(vals["bytes"])
+
+    for country, vals in country_acc.items():
+        rolling_requests_country.labels(zone=zone_name, country=country).set(vals["count"])
+        rolling_bandwidth_country.labels(zone=zone_name, country=country).set(vals["bytes"])
+
+    for status, count in status_acc.items():
+        rolling_requests_status.labels(zone=zone_name, status=status).set(count)
+
+    for proto, count in ssl_acc.items():
+        rolling_requests_ssl.labels(zone=zone_name, ssl=proto).set(count)
+
+    total_threats = sum(threat_acc.values())
+    rolling_threats_total.labels(zone=zone_name).set(total_threats)
+    for country, count in threat_acc.items():
+        rolling_threats_country.labels(zone=zone_name, country=country).set(count)
+
+    log.info(
+        "Rolling %s: %d requests, %d bytes, %d visits (%d chunks)",
+        zone_name, total_requests, total_bandwidth, total_visits, len(chunks),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -495,7 +542,10 @@ def scrape_loop():
         rolling_threats_total.labels(zone=zn).set(0)
 
     last_rolling_scrape = 0
-    rolling_interval = max(SCRAPE_INTERVAL * 5, 300)  # rolling scrape every 5 cycles or 5min minimum
+    # Scale rolling interval based on window size - more chunks = less frequent
+    num_chunks = max(1, ROLLING_WINDOW // 86400)
+    rolling_interval = max(600, num_chunks * 60)  # at least 10min, ~1min per day of window
+    log.info("Rolling scrape interval: %ds (%d day chunks per zone)", rolling_interval, num_chunks)
 
     while True:
         try:
