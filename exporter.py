@@ -23,7 +23,9 @@ CF_ACCOUNTS = os.environ.get("CF_ACCOUNTS", "")  # optional account ID
 LISTEN_PORT = int(os.environ.get("LISTEN_PORT", "8080"))
 SCRAPE_INTERVAL = int(os.environ.get("SCRAPE_INTERVAL", "60"))
 SCRAPE_DELAY = int(os.environ.get("SCRAPE_DELAY", "300"))  # data offset in seconds
-ROLLING_WINDOW = min(int(os.environ.get("ROLLING_WINDOW", "86400")), 691200)  # max 691200s (8 days) on free tier
+MAX_ROLLING = 604800  # 7 days — safe margin under free tier's 691200s hard limit
+_requested_window = int(os.environ.get("ROLLING_WINDOW", "86400"))
+ROLLING_WINDOW = min(_requested_window, MAX_ROLLING)
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "info").upper()
 
 logging.basicConfig(
@@ -597,6 +599,8 @@ def main():
 
     log.info("Starting Cloudflare exporter on :%d/metrics", LISTEN_PORT)
     log.info("Scrape interval: %ds, data delay: %ds, rolling window: %dh", SCRAPE_INTERVAL, SCRAPE_DELAY, ROLLING_WINDOW // 3600)
+    if _requested_window > MAX_ROLLING:
+        log.warning("ROLLING_WINDOW %ds exceeds free tier max, capped to %ds (7 days)", _requested_window, MAX_ROLLING)
 
     start_http_server(LISTEN_PORT)
 

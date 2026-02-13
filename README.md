@@ -55,7 +55,7 @@ Metrics are served at `http://localhost:8090/metrics`.
 | `CF_EXPORTER_PORT` | `8090` | Metrics endpoint port |
 | `CF_SCRAPE_INTERVAL` | `60` | Scrape interval in seconds |
 | `CF_SCRAPE_DELAY` | `300` | Data delay offset (Cloudflare analytics lag) |
-| `CF_ROLLING_WINDOW` | `86400` | Rolling summary window in seconds (max 691200 = 8 days on free tier) |
+| `CF_ROLLING_WINDOW` | `86400` | Rolling summary window in seconds (max 604800 = 7 days on free tier) |
 | `CF_LOG_LEVEL` | `info` | Log level (`debug`, `info`, `error`) |
 
 ## Grafana
@@ -69,5 +69,5 @@ Cloudflare's free tier zones have access to `httpRequestsAdaptiveGroups` but **n
 ## Free tier API limits
 
 - Max **86400s** (24h) per single query — rolling scrapes automatically chunk into daily queries
-- Max **691200s** (8 days) historical data — `ROLLING_WINDOW` is capped to this
+- Max **691200s** (~8 days) historical data — `ROLLING_WINDOW` is capped to 604800s (7 days) for safe margin
 - Rate limiting kicks in after ~200 rapid requests — rolling scrapes include 1s throttle between calls
