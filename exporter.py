@@ -23,7 +23,7 @@ CF_ACCOUNTS = os.environ.get("CF_ACCOUNTS", "")  # optional account ID
 LISTEN_PORT = int(os.environ.get("LISTEN_PORT", "8080"))
 SCRAPE_INTERVAL = int(os.environ.get("SCRAPE_INTERVAL", "60"))
 SCRAPE_DELAY = int(os.environ.get("SCRAPE_DELAY", "300"))  # data offset in seconds
-ROLLING_WINDOW = int(os.environ.get("ROLLING_WINDOW", "86400"))  # rolling sum window in seconds (default 24h)
+ROLLING_WINDOW = min(int(os.environ.get("ROLLING_WINDOW", "86400")), 691200)  # max 691200s (8 days) on free tier
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "info").upper()
 
 logging.basicConfig(
@@ -488,6 +488,9 @@ def scrape_zone_rolling(zone, rolling_start, rolling_end):
             for g in data["viewer"]["zones"][0].get("threats", []):
                 country = g["dimensions"]["clientCountryName"] or "unknown"
                 threat_acc[country] = threat_acc.get(country, 0) + g["count"]
+
+        # Throttle to avoid API rate limits
+        time.sleep(1)
 
     # --- Set all rolling metrics ---
     rolling_requests_total.labels(zone=zone_name).set(total_requests)
